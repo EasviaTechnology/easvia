@@ -46,6 +46,40 @@
     get(){try{return sessionStorage.getItem('easvia_session')==='active';}catch{return inMemorySession;}},
     set(value){inMemorySession=value;try{if(value)sessionStorage.setItem('easvia_session','active');else sessionStorage.removeItem('easvia_session');}catch{}}
   };
+  // Remember only this browser tab's current view across page refreshes.
+  // sessionStorage is scoped to the tab and is cleared when the tab is closed.
+  // This is navigation convenience only: it does not provide authentication.
+  const tabView={
+    key:'easvia_tab_view_v1',
+    restore(){
+      try {
+        const saved=JSON.parse(sessionStorage.getItem(this.key)||'null');
+        if(!saved || typeof saved!=='object')return;
+        if(['overview','activity','statements','forecast'].includes(saved.page))state.page=saved.page;
+        if(['6m','12m','all','future'].includes(saved.chartRange))state.chartRange=saved.chartRange;
+        if(typeof saved.statementMonth==='string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(saved.statementMonth) &&
+          saved.statementMonth>=D.schedule.firstStatementMonth && saved.statementMonth<=latestPublishedStatementMonth()){
+          state.statementMonth=saved.statementMonth;
+        }
+        const availableMonths=F.monthsBetween(D.schedule.firstStatementMonth,latestPublishedStatementMonth())+1;
+        if(Number.isInteger(saved.archiveCount))state.archiveCount=Math.max(12,Math.min(availableMonths,saved.archiveCount));
+        if(typeof saved.paymentAmount==='string' && saved.paymentAmount.length<=32)state.paymentAmount=saved.paymentAmount;
+        if(typeof saved.paymentDate==='string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.paymentDate) && saved.paymentDate>=F.today())state.paymentDate=saved.paymentDate;
+        if(typeof saved.targetDate==='string' && /^\d{4}-\d{2}-\d{2}$/.test(saved.targetDate) && saved.targetDate>=F.today())state.targetDate=saved.targetDate;
+      } catch { /* Storage may be unavailable or contain stale data. */ }
+    },
+    save(){
+      try {
+        sessionStorage.setItem(this.key,JSON.stringify({
+          page:state.page,chartRange:state.chartRange,statementMonth:state.statementMonth,
+          archiveCount:state.archiveCount,paymentAmount:state.paymentAmount,
+          paymentDate:state.paymentDate,targetDate:state.targetDate
+        }));
+      } catch { /* Keep navigation usable without storage. */ }
+    },
+    clear(){try{sessionStorage.removeItem(this.key);}catch{}}
+  };
+  if(session.get())tabView.restore();
   const notify=text=>{ const node=$('#toast');node.textContent=text;node.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.remove('visible'),3000);};
   function pageHead(eyebrow,title,desc,extra='') {
     return `<div class="page-header"><div><div class="page-eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1><p class="page-description">${esc(desc)}</p></div>${extra}</div>`;
@@ -253,6 +287,7 @@
     $$('.nav-link').forEach(btn=>{btn.classList.toggle('active',btn.dataset.page===state.page);btn.setAttribute('aria-current',btn.dataset.page===state.page?'page':'false');});
     if(state.page==='overview')renderChart();
     if(state.page==='statements')$('#moreStatements').hidden=state.archiveCount>=F.monthsBetween('2025-01',latestPublishedStatementMonth())+1;
+    tabView.save();
   }
   function navigate(page){if(!pages[page])return;state.page=page;$('#sidebar').classList.remove('menu-open');render();window.scrollTo({top:0,behavior:'instant'});}
   function printStatement(){
@@ -281,7 +316,7 @@
     $('#loginError').textContent='';
   });
   $('#toggleSecret').addEventListener('click',()=>{$('#loginSecret').type=$('#loginSecret').type==='password'?'text':'password';});
-  $('#signOut').addEventListener('click',()=>{session.set(false);$('#appScreen').hidden=true;$('#authScreen').hidden=false;$('#loginSecret').value='';$('#sidebar').classList.remove('menu-open');});
+  $('#signOut').addEventListener('click',()=>{session.set(false);tabView.clear();state.page='overview';state.statementMonth=latestPublishedStatementMonth();$('#appScreen').hidden=true;$('#authScreen').hidden=false;$('#loginSecret').value='';$('#sidebar').classList.remove('menu-open');});
   $('#mobileMenu').addEventListener('click',()=>$('#sidebar').classList.toggle('menu-open'));
   document.addEventListener('click',e=>{
     const link=e.target.closest('[data-page]');if(link){navigate(link.dataset.page);return;}
@@ -306,6 +341,7 @@
   document.addEventListener('input',e=>{
     if(e.target.id==='paymentAmount'){
       state.paymentAmount=e.target.value;
+      tabView.save();
       // Avoid replacing the focused input as the user types. Recalculate results
       // in the existing nodes, then fully re-render when focus leaves.
       const amount=F.parseCents(state.paymentAmount),valid=Number.isFinite(amount),base=F.actualBalanceOn(state.targetDate,D);
