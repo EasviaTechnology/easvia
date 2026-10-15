@@ -112,6 +112,20 @@
     return balanceOn(target,{items:config.purchases,feeGroups:config.feeGroups,
       payments:[...config.payments,...hypothetical]});
   }
+  function groupedTransactions(snapshot, config) {
+    // Display one row per purchase/late-fee group. The underlying purchases
+    // remain individually priced and the shared fee is never duplicated.
+    const groups=config.feeGroups||[];
+    return groups.map(group=>{
+      const feeRow=snapshot.feeRows.find(row=>row.id===group.id);
+      if(!feeRow) return null; // A group is not yet in the historical statement.
+      const items=group.purchaseIds.map(id=>snapshot.rows.find(row=>row.id===id)).filter(Boolean);
+      if(items.length!==group.purchaseIds.length) return null;
+      const principalCents=items.reduce((sum,row)=>sum+row.principalChargedCents,0);
+      return {...feeRow,items,principalCents,totalCents:principalCents+feeRow.feeCents,
+        purchaseDate:items[0].purchaseDate};
+    }).filter(Boolean);
+  }
   function firstPurchase(config) { return config.purchases.map(p=>p.purchaseDate).sort()[0]; }
   function monthsBetween(fromMonth,toMonth){
     const a=fromYMD(fromMonth+'-01'),b=fromYMD(toMonth+'-01');
@@ -132,5 +146,5 @@
   }
   return {fromYMD,toYMD,today,addMonths,monthStart,monthEnd,statementDate,addDays,
     formatMoney,moneyPlain,prettyDate,prettyMonth,parseCents,feeDates,monthlyRate,latestPublishedMonth,
-    balanceOn,statementFor,actualBalanceOn,forecastBalance,firstPurchase,monthSeries,monthsBetween};
+    balanceOn,statementFor,actualBalanceOn,forecastBalance,groupedTransactions,firstPurchase,monthSeries,monthsBetween};
 });

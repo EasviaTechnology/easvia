@@ -49,7 +49,7 @@ window.EASVIA_CONFIG = {
      Keeping it as a separate group avoids inventing a fee allocation. */
   feeGroups: [
     {
-      id: 'jan-5-shared', name: 'Jan 5 purchases — shared late fee',
+      id: 'jan-5-shared', name: 'January 5 transaction — 2 items',
       purchaseIds: ['orchid', 'blueberry-faygo'],
       dueDate: '2025-07-05', lateFeeStart: '2025-08-05',
       monthlyLateFeeCents: 150

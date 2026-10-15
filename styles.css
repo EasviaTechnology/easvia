@@ -33,15 +33,44 @@
 .chart-anchors>span:last-child strong{color:#716ae8}
 @media(max-width:600px){.chart-anchors{gap:6px}.chart-anchors>span{padding-left:8px}.chart-anchors small{font-size:8px;letter-spacing:0}.chart-anchors strong{font-size:13px}}
 
-/* Revised statement: four purchase rows plus a separately disclosed shared fee. */
-.statement-brand{display:block;margin-top:7px;font:700 9px Arial,Helvetica,sans-serif;letter-spacing:.7px;text-transform:uppercase;color:#6e7c91}
-.statement-shared-fee{background:#f5f8fc}
-.statement-shared-fee td:first-child strong{color:#314b6c}
-.statement-sheet .statement-table th,.statement-sheet .statement-table td{padding:7px 6px;font-size:9px;line-height:1.37}
-.statement-sheet .statement-table th{font-size:8.7px}
-.statement-sheet .statement-table .subline{font-size:8.5px;margin-top:3px}
-.statement-sheet .statement-bottom{margin-top:19px}
-.statement-sheet .statement-small-print{font-size:8px;line-height:1.4;margin-top:13px}
-.statement-sheet .statement-page-footer{margin-top:42px}
-.purchase-meta strong{max-width:62%;text-align:right}
-@media print{.statement-sheet .statement-page-footer{margin-top:42px}}
+/* Original payment statement design retained; updates are data-only. */
+/* Multiple products within a single January 5 transaction, one shared fee. */
+.transaction-products{display:flex;flex-direction:column;gap:6px;min-width:0}
+.transaction-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;font-weight:750;line-height:1.4;color:#263652}
+.transaction-line span:first-child{flex:1;min-width:0}
+.transaction-line-price{flex:0 0 auto;font-size:11px;color:#7986a0;font-weight:750;white-space:nowrap}
+.transaction-group-caption{display:block;margin-top:8px;font-size:10px;color:#929aad}
+.row-name .transaction-products{gap:8px}
+.row-name .transaction-line{font-size:11px}
+.purchase-head .transaction-products{gap:7px}
+.purchase-head .transaction-line{font-size:12px}
+.transaction-total-row{background:#f5f7fc;font-weight:800}
+.transaction-total-row td{border-top:2px solid #dce2ed}
+.data-table .subtext{display:block;margin-top:5px;font-size:10px;color:#9ba4b8}
+.statement-product-list{display:flex;flex-direction:column;gap:6px}
+.statement-product-line{display:block;font-weight:800;line-height:1.35;color:#25334a}
+.statement-product-line .transaction-line-price{display:block;font-size:9px;font-weight:500;color:#6f7e91;margin-top:2px}
+@media print{.statement-product-line{font-size:10px}.statement-product-list{gap:5px}}
+
+/* Compact product-by-product disclosure in the original six-column statement table. */
+.statement-sheet .statement-item-name{font-size:10px;line-height:1.36;color:#192334;margin:0 0 2px}
+.statement-sheet .statement-item-name strong{font-weight:800}
+.statement-sheet .statement-item-price{font-size:9px;font-weight:400;color:#7d899a;white-space:nowrap}
+.statement-sheet .statement-table th,.statement-sheet .statement-table td{padding:8px 6px;line-height:1.35}
+.statement-sheet .statement-table th{font-size:9px}
+.statement-sheet .statement-table .subline{font-size:9px;margin-top:3px}
+.statement-sheet .statement-bottom{margin-top:23px}
+.statement-sheet .statement-page-footer{margin-top:70px}
+@media print{.statement-sheet .statement-page-footer{margin-top:70px}}
+
+/* Match typography, two-line heading and margins of the reference statement. */
+.statement-sheet-header h1{flex:0 0 255px;white-space:nowrap}
+.statement-sheet-header .statement-meta{flex:0 0 267px;min-width:267px;font-size:11px;column-gap:18px}
+.statement-sheet .statement-divider{margin-top:38px}
+.statement-sheet .statement-notice{font-size:12px;line-height:1.5}
+.statement-sheet .statement-table{font-size:11px}
+.statement-sheet .statement-table th{font-size:10px}
+.statement-sheet .statement-item-name{font-size:11px}
+.statement-sheet .statement-item-price{font-size:9.5px}
+.statement-sheet .statement-table .subline{font-size:10px}
+@media print{@page{size:letter;margin:.55in .62in}}
