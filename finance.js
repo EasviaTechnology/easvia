@@ -37,80 +37,80 @@
     const result = Number(major)*100+Number(minor.padEnd(2,'0'));
     return Number.isSafeInteger(result) ? result : NaN;
   };
-  function feeDates(item, until) {
-    if (until < item.lateFeeStart) return [];
-    const list=[];
-    let current=item.lateFeeStart;
-    let n=0;
-    // Each fee starts on its listed date, and recurs on that calendar day
-    // every month. This reproduces 16 / 15 / 16 installments on 2026-10-31.
-    while(current <= until && n < 2400) {
-      list.push(current);
-      n++;
-      current=addMonths(item.lateFeeStart,n);
+  function feeDates(group, until) {
+    if(until < group.lateFeeStart) return [];
+    const dates=[];
+    for(let n=0;n<2400;n++) {
+      const date=addMonths(group.lateFeeStart,n);
+      if(date>until) break;
+      dates.push(date);
     }
-    return list;
+    return dates;
   }
-  function monthlyRate(items) { return items.reduce((t,i)=>t+i.monthlyLateFeeCents,0); }
+  function monthlyRate(groups) { return groups.reduce((sum,g)=>sum+g.monthlyLateFeeCents,0); }
   function balanceOn(target, options={}) {
     const items=options.items||[];
+    const feeGroups=options.feeGroups||[];
     const payments=options.payments||[];
     const events=[];
     const rows=Object.fromEntries(items.map(item=>[item.id,{...item,principalChargedCents:0,feeCents:0,feeCount:0}]));
-    for(const item of items){
-      if(item.purchaseDate<=target) events.push({date:item.purchaseDate,kind:'purchase',item});
-      for(const date of feeDates(item,target)) events.push({date,kind:'fee',item});
-    }
-    for(const payment of payments) {
-      if(payment.date<=target && Number.isSafeInteger(payment.amountCents) && payment.amountCents>0)
-        events.push({date:payment.date,kind:'payment',payment});
-    }
+    const groupRows=Object.fromEntries(feeGroups.map(g=>[g.id,{...g,feeCents:0,feeCount:0}]));
+    for(const item of items) if(item.purchaseDate<=target) events.push({date:item.purchaseDate,kind:'purchase',item});
+    for(const group of feeGroups) for(const date of feeDates(group,target))
+      events.push({date,kind:'fee',group});
+    for(const payment of payments) if(payment.date<=target && Number.isSafeInteger(payment.amountCents) && payment.amountCents>0)
+      events.push({date:payment.date,kind:'payment',payment});
     const priority={purchase:0,fee:1,payment:2};
     events.sort((a,b)=>a.date.localeCompare(b.date)||priority[a.kind]-priority[b.kind]);
-    let chargedPrincipalCents=0,chargedFeesCents=0,paymentsAppliedCents=0,balanceCents=0;
-    let fullySettled=false;
-    for(const event of events) {
+    let principalCents=0,lateFeesCents=0,paymentsCents=0,balanceCents=0,fullySettled=false;
+    for(const event of events){
       if(event.kind==='purchase') {
-        const value=event.item.principalCents;
-        chargedPrincipalCents+=value; balanceCents+=value;
-        rows[event.item.id].principalChargedCents+=value;
+        const amount=event.item.principalCents;
+        principalCents+=amount; balanceCents+=amount;
+        rows[event.item.id].principalChargedCents+=amount;
         fullySettled=false;
       } else if(event.kind==='fee') {
-        // Simple account-level credit model: all listed item fees continue
-        // while ANY balance remains. The source does NOT specify how partial
-        // payments should be allocated among items; this is an assumption.
+        // Account-level credit convention. A shared group charges once;
+        // a single-purchase group is also attached to its item row.
+        // The owner has not specified an allocation rule for partial payments.
         if(balanceCents>0 && !fullySettled) {
-          const value=event.item.monthlyLateFeeCents;
-          chargedFeesCents+=value; balanceCents+=value;
-          rows[event.item.id].feeCents+=value;
-          rows[event.item.id].feeCount++;
+          const amount=event.group.monthlyLateFeeCents;
+          lateFeesCents+=amount; balanceCents+=amount;
+          const gr=groupRows[event.group.id];
+          gr.feeCents+=amount; gr.feeCount++;
+          if(event.group.purchaseIds.length===1){
+            const r=rows[event.group.purchaseIds[0]];
+            if(r){r.feeCents+=amount;r.feeCount++;}
+          }
         }
       } else {
         const applied=Math.min(balanceCents,event.payment.amountCents);
-        paymentsAppliedCents+=applied;
-        balanceCents-=applied;
+        balanceCents-=applied; paymentsCents+=applied;
         if(balanceCents===0 && applied>0) fullySettled=true;
       }
     }
-    return {date:target,balanceCents,principalCents:chargedPrincipalCents,
-      lateFeesCents:chargedFeesCents,paymentsCents:paymentsAppliedCents,
-      rows:items.map(item=>rows[item.id])};
+    return {date:target,balanceCents,principalCents,lateFeesCents,paymentsCents,
+      rows:items.map(item=>rows[item.id]),
+      feeRows:feeGroups.map(group=>groupRows[group.id])};
   }
   function statementFor(month, config) {
-    const issued=statementDate(month);
-    const due=monthEnd(issued);
-    // A reconstructed statement cannot include purchases that had not
-    // happened on its 14th issue date (relevant for January 2025).
-    const knownItems=config.purchases.filter(p=>p.purchaseDate<=issued);
+    const issued=statementDate(month),due=monthEnd(issued);
+    // Reconstructed historical statements only show purchases existing on
+    // their issue date. Fees are forecast through that month's due date.
+    const knownItems=config.purchases.filter(item=>item.purchaseDate<=issued);
+    const ids=new Set(knownItems.map(item=>item.id));
+    const knownGroups=config.feeGroups.filter(g=>g.purchaseIds.every(id=>ids.has(id)));
     const knownPayments=config.payments.filter(p=>p.date<=issued);
-    const values=balanceOn(due,{items:knownItems,payments:knownPayments});
-    return {month,issued,due,...values};
+    return {month,issued,due,...balanceOn(due,{items:knownItems,feeGroups:knownGroups,payments:knownPayments})};
   }
-  function actualBalanceOn(target, config) { return balanceOn(target,{items:config.purchases,payments:config.payments}); }
+  function actualBalanceOn(target, config) {
+    return balanceOn(target,{items:config.purchases,feeGroups:config.feeGroups,payments:config.payments});
+  }
   function forecastBalance(target, config, paymentDate, paymentCents) {
     const hypothetical=Number.isFinite(paymentCents) && paymentCents>0
       ? [{date:paymentDate,amountCents:paymentCents,note:'Hypothetical payment'}] : [];
-    return balanceOn(target,{items:config.purchases,payments:[...config.payments,...hypothetical]});
+    return balanceOn(target,{items:config.purchases,feeGroups:config.feeGroups,
+      payments:[...config.payments,...hypothetical]});
   }
   function firstPurchase(config) { return config.purchases.map(p=>p.purchaseDate).sort()[0]; }
   function monthsBetween(fromMonth,toMonth){
